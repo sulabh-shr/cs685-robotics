@@ -174,8 +174,8 @@ def main():
     img = mpimg.imread('uvalda_05.png')
     height, width = img.shape;
         
-    EXACT_SAMPLES = True
-    FIXED_GOAL = False
+    EXACT_SAMPLES = False
+    FIXED_GOAL = True
 
     seed = int(time()%10000)        # Seed for debugging
     np.random.seed(seed)
@@ -209,10 +209,6 @@ def main():
         
         if newNum == num:
             break
-    
-    plt.figure(1)
-    plt.imshow(img)
-    plt.scatter(filteredX, filteredY, color='b', marker='.')
 
     if FIXED_GOAL:
         sx = 100
@@ -222,24 +218,34 @@ def main():
         filteredX.extend([sx, gx])
         filteredY.extend([sy, gy])
     else:
-        # select a start and goal     
+        # select a start and goal
         sx = filteredX[0]
         sy = filteredY[0]
         gx = filteredX[len(filteredX) - 1]
         gy = filteredY[len(filteredY) - 1] 
 
+    filteredX = np.array(filteredX)
+    filteredY = np.array(filteredY)
+
+    plt.figure(1)
+    plt.imshow(img)
+    plt.scatter(filteredX, filteredY, color='b', marker='.')
     plt.plot(sx, sy,  'r*')
     plt.plot(gx, gy,  'r*')
-    # plt.show()
-
-    plt.figure(2)
-    plt.imshow(img)
 
     print('Generating road map')
     roadmap = generate_road_map(filteredX, filteredY, 5, img)
+    print(f'Running Djikstra')
     rx, ry = dijkstra(sx, sy, gx, gy, roadmap)
+    
     print(rx)
     print(ry)
+
+    plt.figure(2)
+    plt.imshow(img)
+    plt.title('Path')
+    plt.plot(sx, sy,  'r*')
+    plt.plot(gx, gy,  'r*')
     for i in range(1, len(rx)):
         plt.plot([rx[i-1], rx[i]], [ry[i-1], ry[i]], 'b-')
     plt.show()
