@@ -2,7 +2,9 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import numpy as np
 import math
+
 import cv2
+from tqdm import tqdm
 
 
 class Node:
@@ -22,6 +24,7 @@ class Node:
     def __repr__(self):
         return f'Node({self.x}, {self.y}, {self.cost}, {self.parent_index})'
 
+
 def generateKNeighbors(x, y, k, arrayX, arrayY):
     # x, y = starting point
     # k = number of neighbors
@@ -36,6 +39,7 @@ def generateKNeighbors(x, y, k, arrayX, arrayY):
     for i in range(1, k+1):
         neighbors.append((distances[i][0], distances[i][1]))
     return neighbors
+
 
 def distance(x1, y1, x2, y2):
     return math.sqrt(((x1-x2)**2)+((y1-y2)**2))
@@ -62,21 +66,6 @@ def generate_4_connected_neighbors(x, y, img, arrayX, arrayY):
     return neighbors
 
 
-def inside_radius_indices(r):
-    """ Find indices around the point to check for obstacle.
-        Returns:
-            indices: List((dx,dy))
-                pixel coordinates to check around center
-    """
-    indices = []
-    for i in range(-r, r):
-        for j in range(-r, r):
-            dist_to_center = distance(0,0,i,j)
-            if dist_to_center <= r:
-                indices.append((i,j))
-    return indices
-
-
 def generate_road_map(x, y, rr, img):
     # x, y = arrays of sample points
     # rr = robot radius (5)
@@ -91,9 +80,10 @@ def generate_road_map(x, y, rr, img):
     check = False
     counter = 0
     
+    # Get distance transformed image for faster collision detection
     dist_img = cv2.distanceTransform(np.uint8(img), 2, 5)
 
-    for i in range(newNum):
+    for i in tqdm(range(newNum), total=newNum):
         edge_id = []
         # neighbors = generateKNeighbors(x[i], y[i], 10, x, y)
         neighbors = generate_4_connected_neighbors(x[i], y[i], img, x, y)
@@ -110,6 +100,7 @@ def generate_road_map(x, y, rr, img):
         roadmap[(x[i], y[i])] = edge_id
 
     return roadmap
+
 
 def isCollision(x1, y1, x2, y2, rr, img):
 
@@ -155,6 +146,7 @@ def isCollision(x1, y1, x2, y2, rr, img):
                 return True
 
     return False
+
 
 def dijkstra(sx, sy, gx, gy, road_map):
     rx = []
@@ -207,53 +199,52 @@ def dijkstra(sx, sy, gx, gy, road_map):
 
 
 def main():
-
-
     img = mpimg.imread('uvalda_05.png')
     height, width = img.shape;
-    # number of samples
 
+    FIXED_GOAL = False
+
+    # Create possible samples on the grid
     x, y = np.meshgrid(np.arange(width), np.arange(height))
     x = x.reshape(-1)
     y = y.reshape(-1)
-
-    plt.figure(1)
-    plt.imshow(img)
 
     filteredX = []
     filteredY = []
     newNum = 0
 
-    # find the samples that are in free space 
+    # Find the samples that are in free space 
     for i in range(len(x)):
         if img[y[i]][x[i]] != 0:
             newNum += 1
             filteredX.append(x[i])
             filteredY.append(y[i])
-    # for i in range(newNum):
-    #     plt.plot(filteredX[i], filteredY[i], 'b.')
 
-    sx = 100
-    sy = 50
-    gx = 80
-    gy = 350
-    # filteredX.extend([sx, gx])
-    # filteredY.extend([sy, gy])
+    if FIXED_GOAL:
+        sx = 100
+        sy = 50
+        gx = 80
+        gy = 350
+        filteredX.extend([sx, gx])
+        filteredY.extend([sy, gy])
+    else:
+        # select a start and goal
+        sx = filteredX[0]
+        sy = filteredY[0]
+        gx = filteredX[len(filteredX) - 1]
+        gy = filteredY[len(filteredY) - 1] 
     
     filteredX = np.array(filteredX)
     filteredY = np.array(filteredY)
-    # select a start and goal     
-    # sx = filteredX[0]
-    # sy = filteredY[0]
-    # gx = filteredX[len(filteredX) - 1]
-    # gy = filteredY[len(filteredY) - 1] 
-
+    
+    plt.figure(1)
+    plt.imshow(img)
+    plt.title('Input')
+    plt.scatter(filteredX, filteredY, color='b', marker='.')
     plt.plot(sx, sy,  'r*')
     plt.plot(gx, gy,  'r*')
 
-    plt.figure(2)
-    plt.imshow(img)
-    print(f'Generating road map')
+    print('Generating road map')
     roadmap = generate_road_map(filteredX, filteredY, 5, img)
     
     print(f'Running Djikstra')
@@ -261,6 +252,12 @@ def main():
     print(f'Done')
     print(rx)
     print(ry)
+
+    plt.figure(2)
+    plt.imshow(img)
+    plt.title('Path')
+    plt.plot(sx, sy,  'r*')
+    plt.plot(gx, gy,  'r*')
     for i in range(1, len(rx)):
         plt.plot([rx[i-1], rx[i]], [ry[i-1], ry[i]], 'b-')
     plt.show()
