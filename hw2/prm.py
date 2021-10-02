@@ -3,6 +3,11 @@ import matplotlib.image as mpimg
 import numpy as np
 import math
 
+import cv2
+from tqdm import tqdm
+from time import time
+
+
 class Node:
     """
     Node class for dijkstra search
@@ -17,6 +22,7 @@ class Node:
     def __str__(self):
         return str(self.x) + "," + str(self.y) + "," +\
                str(self.cost) + "," + str(self.parent_index)
+
 
 def generateKNeighbors(x, y, k, arrayX, arrayY):
     # x, y = starting point
@@ -33,8 +39,10 @@ def generateKNeighbors(x, y, k, arrayX, arrayY):
         neighbors.append((distances[i][0], distances[i][1]))
     return neighbors
 
+
 def distance(x1, y1, x2, y2):
     return math.sqrt(((x1-x2)**2)+((y1-y2)**2))
+
 
 def generate_road_map(x, y, rr, img):
     # x, y = arrays of sample points
@@ -49,15 +57,18 @@ def generate_road_map(x, y, rr, img):
     newNum = len(x)
     check = False
     counter = 0
-    # print(newNum)
-    for i in range(newNum):
+    
+    # Get distance transformed image for faster collision detection
+    dist_img = cv2.distanceTransform(np.uint8(img), 2, 5)
+
+    for i in tqdm(range(newNum), total=newNum):
         edge_id = []
         neighbors = generateKNeighbors(x[i], y[i], 10, x, y)
         counter += 1
-        # print(x[i], y[i], neighbors, counter)
+
         #check if theres a collision between the neighbors
         for j in neighbors:
-            if isCollision(x[i], y[i], j[0], j[1], 5, img):
+            if isCollision(x[i], y[i], j[0], j[1], 5, dist_img):
                 plt.plot([x[i], j[0]], [y[i], j[1]], 'r-')
             else:
                 plt.plot([x[i], j[0]], [y[i], j[1]], 'g-')
@@ -82,22 +93,27 @@ def isCollision(x1, y1, x2, y2, rr, img):
     
     def eqn_line_x(x1, y1, x2, y2):
         m_inv = (x2-x1)/(y2-y1)
+        # print(m_inv)
         return lambda y: m_inv * (y-y1) + x1
 
+    if x1 == x2 and y1 == y2:
+        return False
+
     d = 1
+
     if abs(x2-x1)>abs(y2-y1):
         if x2 < x1: d = -1
         line_eqn = eqn_line_y(x1, y1, x2, y2)
         for x in range(x1, x2, d):
             y = round(line_eqn(x))
-            if img[y,x] == 0:
+            if img[y,x] < rr:
                 return True
     else:
         if y2 < y1: d = -1
         line_eqn = eqn_line_x(x1, y1, x2, y2)       
         for y in range(y1, y2, d):
             x = round(line_eqn(y))
-            if img[y, x] == 0:
+            if img[y, x] < rr:
                 return True
 
     return False
@@ -155,42 +171,62 @@ def dijkstra(sx, sy, gx, gy, road_map):
 
 
 def main():
-
-
     img = mpimg.imread('uvalda_05.png')
     height, width = img.shape;
+        
+    EXACT_SAMPLES = True
+    FIXED_GOAL = False
+
+    seed = int(time()%10000)        # Seed for debugging
+    np.random.seed(seed)
+    print(f'Running with seed {seed}')
+
     # number of samples
     num = 1000
-    x = list((np.random.rand(1, num) * width)[0].astype(int))
-    y = list((np.random.rand(1, num) * height)[0].astype(int))
-    plt.figure(1)
-    plt.imshow(img)
+
+    if EXACT_SAMPLES:
+        x, y = np.meshgrid(np.arange(width), np.arange(height))
+        x = x.reshape(-1)
+        y = y.reshape(-1)
+        
+        indices = np.arange(len(x))
+        np.random.shuffle(indices)
+    else:
+        x = list((np.random.rand(1, num) * width)[0].astype(int))
+        y = list((np.random.rand(1, num) * height)[0].astype(int))
+        indices = range(num)
 
     filteredX = []
     filteredY = []
     newNum = 0
 
     # find the samples that are in free space 
-    for i in range(num):
+    for i in indices:
         if img[y[i]][x[i]] != 0:
             newNum += 1
             filteredX.append(x[i])
             filteredY.append(y[i])
-    for i in range(newNum):
-        plt.plot(filteredX[i], filteredY[i], 'b.')
-
-    sx = 100
-    sy = 50
-    gx = 80
-    gy = 350
-    filteredX.extend([sx, gx])
-    filteredY.extend([sy, gy])
+        
+        if newNum == num:
+            break
     
-    # select a start and goal     
-    # sx = filteredX[0]
-    # sy = filteredY[0]
-    # gx = filteredX[len(filteredX) - 1]
-    # gy = filteredY[len(filteredY) - 1] 
+    plt.figure(1)
+    plt.imshow(img)
+    plt.scatter(filteredX, filteredY, color='b', marker='.')
+
+    if FIXED_GOAL:
+        sx = 100
+        sy = 50
+        gx = 80
+        gy = 350
+        filteredX.extend([sx, gx])
+        filteredY.extend([sy, gy])
+    else:
+        # select a start and goal     
+        sx = filteredX[0]
+        sy = filteredY[0]
+        gx = filteredX[len(filteredX) - 1]
+        gy = filteredY[len(filteredY) - 1] 
 
     plt.plot(sx, sy,  'r*')
     plt.plot(gx, gy,  'r*')
@@ -198,6 +234,8 @@ def main():
 
     plt.figure(2)
     plt.imshow(img)
+
+    print('Generating road map')
     roadmap = generate_road_map(filteredX, filteredY, 5, img)
     rx, ry = dijkstra(sx, sy, gx, gy, roadmap)
     print(rx)
